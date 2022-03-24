@@ -5,28 +5,8 @@ module Rack
   module R3
     METHODS = %i[GET POST PUT DELETE PATCH HEAD OPTIONS].freeze
 
-    def self.included(base)      
-      base.instance_eval do
-        def compile_path(path)
-          # returns transformed path pattern and any extra_param_names matched
-          # '/articles/' => %r{\A/articles/?\z}
-          # '/articles/:id' => %r{\A/articles/([^/]+)/?\z}
-          # '/restaurants/:id/comments' => %r{\A/restaurants/([^/]+)/comments/?\z}
-
-          # remove trailing slashes then add named capture group
-          extra_param_names = []
-          path =
-            path
-            .gsub(%r{/+\z}, '')
-            .gsub(/:\w+/) do |match|
-              extra_param_names << match.gsub(':', '').to_sym
-              '([^/]+)'
-            end
-
-          [%r{\A#{path}/?\z}, extra_param_names]
-        end  
-      end
-      
+    def self.included(base)
+      base.extend(ClassMethods)
       base.class_eval do
         @@routes = Hash.new([])
 
@@ -41,11 +21,32 @@ module Rack
             compile_path(path).then do |compiled_path, extra_params|
               route[:compiled_path] = compiled_path
               route[:extra_params] = extra_params
-              @@routes[verb] << route
+              self.routes[verb] << route
             end
           end
         end
-      end
+      end      
+    end
+    
+    module ClassMethods
+      def compile_path(path)
+        # returns transformed path pattern and any extra_param_names matched
+        # '/articles/' => %r{\A/articles/?\z}
+        # '/articles/:id' => %r{\A/articles/([^/]+)/?\z}
+        # '/restaurants/:id/comments' => %r{\A/restaurants/([^/]+)/comments/?\z}
+
+        # remove trailing slashes then add named capture group
+        extra_param_names = []
+        path =
+          path
+          .gsub(%r{/+\z}, '')
+          .gsub(/:\w+/) do |match|
+            extra_param_names << match.gsub(':', '').to_sym
+            '([^/]+)'
+          end
+
+        [%r{\A#{path}/?\z}, extra_param_names]
+      end  
     end
 
     def service(env)
